@@ -36,9 +36,9 @@ mcp = FastMCP(
     ),
 )
 
-mcp.mount(krx, prefix="krx")
-mcp.mount(dart, prefix="dart")
-mcp.mount(ecos, prefix="ecos")
+mcp.mount(krx, namespace="krx")
+mcp.mount(dart, namespace="dart")
+mcp.mount(ecos, namespace="ecos")
 
 # ASGI app for production deployment (uvicorn stock_data_mcp.server:app)
 app = mcp.http_app()

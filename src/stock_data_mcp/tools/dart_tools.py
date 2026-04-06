@@ -77,6 +77,10 @@ async def get_financial_statements(
 ) -> dict:
     """전체 재무제표를 조회합니다 (재무상태표, 손익계산서, 현금흐름표, 자본변동표).
 
+    주의: 은행·증권사·보험사 등 금융업 회사는 DART XBRL 표준 재무제표 API에서 조회가
+    불가합니다. 이 경우 status='013'과 함께 관련 공시 문서 목록을 반환하며,
+    dart_get_disclosure_document()로 실제 공시 원문을 확인해야 합니다.
+
     Args:
         corp_code: DART 기업 고유번호 8자리
         business_year: 사업연도 (YYYY, 예: '2023')
@@ -113,12 +117,37 @@ async def get_major_accounts(
 ) -> dict:
     """주요 재무 항목을 조회합니다 (매출액, 영업이익, 당기순이익, 자산총계, 부채총계, 자본총계).
 
+    주의: 은행·증권사·보험사 등 금융업 회사는 조회가 불가하며, 이 경우 관련 공시 목록을 반환합니다.
+
     Args:
         corp_code: DART 기업 고유번호 8자리
         business_year: 사업연도 (YYYY)
         report_code: 보고서 코드. '11013'=1분기, '11012'=반기, '11014'=3분기, '11011'=연간
     """
     return await _client.get_major_accounts(corp_code, business_year, report_code)
+
+
+@dart.tool
+async def get_financial_statements_from_document(
+    corp_code: str,
+    business_year: str,
+    report_code: str = "11011",
+) -> dict:
+    """공시 원문(document.zip)을 다운로드해 HTML에서 재무제표 테이블을 직접 파싱합니다.
+
+    증권사·은행·보험사 등 금융업 회사는 표준 DART 재무제표 API로 조회가 불가하므로
+    이 툴을 사용하세요. 모든 업종에서 사용 가능하며, 실제 공시 원문 기준 데이터를
+    반환합니다.
+
+    Args:
+        corp_code: DART 기업 고유번호 8자리
+        business_year: 사업연도 (YYYY, 예: '2024')
+        report_code: '11011'=사업보고서(기본값·연간), '11012'=반기보고서,
+                     '11013'=1분기보고서, '11014'=3분기보고서
+    """
+    return await _client.get_financial_statements_from_document(
+        corp_code, business_year, report_code
+    )
 
 
 # ── 배당 ────────────────────────────────────────────────────────────────────
