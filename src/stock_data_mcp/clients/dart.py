@@ -84,12 +84,20 @@ class DARTClient:
         return resp.json()
 
     async def get_disclosure_document(self, rcept_no: str) -> dict:
-        """공시 원문 문서 정보."""
+        """공시 원문 ZIP(document.xml)을 다운로드해 파일 목록을 반환합니다."""
         resp = await self._client.get(
-            "/document.json", params={**self._auth(), "rcept_no": rcept_no}
+            "/document.xml", params={**self._auth(), "rcept_no": rcept_no}
         )
         resp.raise_for_status()
-        return resp.json()
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            file_list = zf.namelist()
+
+        return {
+            "status": "000",
+            "rcept_no": rcept_no,
+            "files": file_list,
+        }
 
     # ── 재무제표 ──────────────────────────────────────────────────────────
 
@@ -115,7 +123,32 @@ class DARTClient:
             },
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+
+        # status 013 = 조회된 데이터 없음 (은행/증권/보험 등 금융업 회사에서 발생)
+        if data.get("status") == "013":
+            disclosures = await self.search_disclosures(
+                corp_code=corp_code,
+                start_date=f"{business_year}0101",
+                end_date=f"{business_year}1231",
+                disclosure_type="A",  # 정기공시
+                page_count=5,
+            )
+            return {
+                "status": "013",
+                "message": (
+                    "재무제표 데이터를 조회할 수 없습니다. "
+                    "은행·증권·보험 등 금융업 회사는 DART 표준 재무제표 API(XBRL)에서 "
+                    "조회가 불가합니다. 아래 공시 문서를 직접 확인하세요."
+                ),
+                "suggestion": (
+                    "dart_get_disclosure_document(rcept_no)를 사용해 "
+                    "실제 공시 원문 문서 목록을 조회한 뒤 재무제표 파일을 확인하세요."
+                ),
+                "related_disclosures": disclosures.get("list", []),
+            }
+
+        return data
 
     async def get_financial_statements_multi(
         self,
@@ -163,7 +196,31 @@ class DARTClient:
             },
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+
+        if data.get("status") == "013":
+            disclosures = await self.search_disclosures(
+                corp_code=corp_code,
+                start_date=f"{business_year}0101",
+                end_date=f"{business_year}1231",
+                disclosure_type="A",
+                page_count=5,
+            )
+            return {
+                "status": "013",
+                "message": (
+                    "주요 재무 항목을 조회할 수 없습니다. "
+                    "은행·증권·보험 등 금융업 회사는 DART 표준 재무제표 API에서 "
+                    "조회가 불가합니다. 아래 공시 문서를 직접 확인하세요."
+                ),
+                "suggestion": (
+                    "dart_get_disclosure_document(rcept_no)를 사용해 "
+                    "실제 공시 원문 문서 목록을 조회한 뒤 재무제표 파일을 확인하세요."
+                ),
+                "related_disclosures": disclosures.get("list", []),
+            }
+
+        return data
 
     # ── 배당 ──────────────────────────────────────────────────────────────
 
@@ -244,6 +301,148 @@ class DARTClient:
         )
         resp.raise_for_status()
         return resp.json()
+
+    # ── 공시 원문 재무제표 (금융업 포함) ──────────────────────────────────
+
+    async def get_financial_statements_from_document(
+        self,
+        corp_code: str,
+        business_year: str,
+        report_code: str = "11011",
+    ) -> dict:
+        """공시 원문 ZIP을 다운로드해 HTML에서 재무제표 테이블을 파싱합니다.
+        증권사·은행·보험사 등 표준 API로 조회 불가한 금융업 회사에 사용하세요.
+        report_code: 11011=사업보고서, 11012=반기, 11013=1분기, 11014=3분기
+        """
+        from bs4 import BeautifulSoup
+
+        # 보고서 코드 → 검색 키워드 매핑
+        report_keyword_map = {
+            "11011": "사업보고서",
+            "11012": "반기보고서",
+            "11013": "분기보고서",
+            "11014": "분기보고서",
+        }
+        keyword = report_keyword_map.get(report_code, "사업보고서")
+
+        # ── 1. 해당 연도 공시 검색 ────────────────────────────────────────
+        next_year = str(int(business_year) + 1)
+        disclosures = await self.search_disclosures(
+            corp_code=corp_code,
+            start_date=f"{business_year}0101",
+            end_date=f"{next_year}0630",
+            disclosure_type="A",
+            page_count=10,
+        )
+
+        rcept_no = None
+        report_nm = None
+        for disc in disclosures.get("list", []):
+            nm = disc.get("report_nm", "")
+            if keyword in nm and "[첨부정정]" not in nm and "[정정]" not in nm:
+                rcept_no = disc["rcept_no"]
+                report_nm = nm
+                break
+
+        if not rcept_no:
+            return {
+                "status": "error",
+                "message": f"{business_year}년 {keyword}를 찾을 수 없습니다.",
+                "disclosures": disclosures.get("list", []),
+            }
+
+        # ── 2. document.xml 다운로드 (실제 ZIP 바이너리) ─────────────────
+        resp = await self._client.get(
+            "/document.xml",
+            params={**self._auth(), "rcept_no": rcept_no},
+        )
+        resp.raise_for_status()
+
+        # ── 3. ZIP에서 파일 파싱 (HTML/XML 모두 지원) ───────────────────
+        import warnings
+        from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+
+        fin_keywords = {
+            "재무상태표", "손익계산서", "포괄손익계산서",
+            "현금흐름표", "자본변동표",
+            "영업수익", "영업비용", "당기순이익",
+            "자산총계", "부채총계", "자본총계",
+        }
+
+        results: list[dict] = []
+
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            # DART 공시는 .xml 또는 .html 형태로 제공됨
+            doc_files = sorted(
+                [f for f in zf.namelist()
+                 if f.lower().endswith((".html", ".htm", ".xml"))],
+            )
+
+            for fname in doc_files:
+                raw = zf.read(fname)
+                for enc in ("utf-8", "euc-kr", "cp949"):
+                    try:
+                        content = raw.decode(enc)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    continue
+
+                # XMLParsedAsHTMLWarning 숨기기 (의도적 사용)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+                    soup = BeautifulSoup(content, "html.parser")
+
+                page_text = soup.get_text()
+                if not any(kw in page_text for kw in fin_keywords):
+                    continue
+
+                for table in soup.find_all("table"):
+                    table_text = table.get_text()
+                    if not any(kw in table_text for kw in fin_keywords):
+                        continue
+
+                    rows = []
+                    for tr in table.find_all("tr"):
+                        cells = [
+                            td.get_text(" ", strip=True)
+                            for td in tr.find_all(["td", "th"])
+                        ]
+                        if cells and any(c for c in cells):
+                            rows.append(cells)
+
+                    if len(rows) >= 3:
+                        title = ""
+                        preceding = table.find_previous(
+                            ["h1", "h2", "h3", "h4", "p", "div", "title"],
+                            string=lambda t: t and any(kw in t for kw in fin_keywords),
+                        )
+                        if preceding:
+                            title = preceding.get_text(strip=True)
+
+                        results.append({
+                            "file": fname,
+                            "title": title,
+                            "rows": rows,
+                        })
+
+        if not results:
+            return {
+                "status": "error",
+                "message": "재무제표 테이블을 찾을 수 없습니다.",
+                "rcept_no": rcept_no,
+                "report_nm": report_nm,
+            }
+
+        return {
+            "status": "000",
+            "corp_code": corp_code,
+            "business_year": business_year,
+            "report_nm": report_nm,
+            "rcept_no": rcept_no,
+            "tables": results,
+        }
 
     async def aclose(self) -> None:
         await self._client.aclose()
