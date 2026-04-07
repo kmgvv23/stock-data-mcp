@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,8 +20,9 @@ class Settings(BaseSettings):
     ecos_api_key: str
 
     # Server runtime (HTTP transport)
+    # PORT는 Railway 등 클라우드 플랫폼이 주입하는 환경변수
     server_host: str = "0.0.0.0"
-    server_port: int = 8000
+    server_port: int = Field(default=8000, validation_alias=AliasChoices("PORT", "SERVER_PORT"))
 
 
 @lru_cache
