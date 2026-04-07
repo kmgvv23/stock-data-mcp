@@ -1,6 +1,3 @@
-[build]
-builder = "nixpacks"
-
 [deploy]
 startCommand = "SERVER_PORT=$PORT stock-mcp --http"
 healthcheckPath = "/mcp"
