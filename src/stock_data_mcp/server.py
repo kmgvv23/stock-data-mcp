@@ -39,7 +39,16 @@ mcp = FastMCP(
         "1. Use dart_get_corp_codes() to find a company's corp_code from its stock ticker\n"
         "2. Use krx_get_stock_ohlcv() for price history (requires ISIN code)\n"
         "3. Use dart_get_financial_statements() for financials\n"
-        "4. Use ecos_get_base_rate() / ecos_get_exchange_rate_usd() for macro context\n"
+        "4. Use ecos_get_base_rate() / ecos_get_exchange_rate_usd() for macro context\n\n"
+        "Excel model filling workflow (ONLY when user explicitly provides an Excel template file):\n"
+        "1. dart_get_corp_codes(query=...) → get corp_code\n"
+        "2. dart_get_financials_for_model(corp_code, years=[...]) → structured multi-year data\n"
+        "3. Read the Excel template to detect row/column positions for each account\n"
+        "4. Fill cells using openpyxl, preserving original formatting exactly\n"
+        "5. Hardcoded values = blue font, formulas = black font, cross-sheet links = green font\n"
+        "6. Run recalc to verify zero formula errors\n"
+        "IMPORTANT: dart_get_financials_for_model() must NOT be called for general financial queries.\n"
+        "           Use it ONLY when the user attaches or specifies an Excel file to fill.\n"
     ),
 )
 

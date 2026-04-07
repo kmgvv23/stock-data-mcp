@@ -219,6 +219,58 @@ async def get_large_shareholders(corp_code: str) -> dict:
     return await _client.get_large_shareholders(corp_code)
 
 
+# ── 재무 모델용 멀티연도 데이터 ──────────────────────────────────────────────
+
+
+@dart.tool
+async def get_financials_for_model(
+    corp_code: str,
+    years: list[int],
+    report_code: str = "11011",
+    fs_type: str = "CFS",
+    unit: int = 1_000_000,
+) -> dict:
+    """여러 연도 재무제표를 병렬 조회 후 DCF·재무 모델 채우기에 최적화된 구조로 반환합니다.
+
+    XBRL account_id 기반으로 매핑하므로 회사·업종별 계정명 차이와 무관하게
+    항상 동일한 표준 필드명으로 반환됩니다. 매핑 실패 시 account_nm 키워드로 폴백합니다.
+
+    반환 구조:
+    {
+      "years": [2020, 2021, ...],
+      "unit": "백만원",
+      "data": {
+        "2024": {
+          "income_statement": {"revenue": 97146675, "operating_income": 47206319, ...},
+          "balance_sheet":    {"total_assets": ..., "ppe": ..., "cash": ...},
+          "cash_flow":        {"operating_cf": ..., "capex_ppe": ..., "fcf": ...}
+        },
+        ...
+      },
+      "field_labels": {"revenue": "매출액", "operating_income": "영업이익(EBIT)", ...}
+    }
+
+    주요 자동 계산 필드:
+    - ebitda = 영업이익 + 감가상각비 + 무형자산상각비
+    - interest_bearing_debt = 단기차입금 + 유동성장기부채 + 장기차입금 + 사채
+    - net_debt = IBD - 현금 - 단기금융상품
+    - fcf = 영업활동현금흐름 + CAPEX(음수)
+
+    주의: 금융업(은행·증권·보험)은 DART XBRL 미제공으로 조회 불가.
+    금융업은 dart_get_financial_statements_from_document() 사용.
+
+    Args:
+        corp_code: DART 기업 고유번호 8자리 (dart_get_corp_codes로 조회)
+        years: 조회할 연도 리스트 (예: [2020, 2021, 2022, 2023, 2024, 2025])
+        report_code: '11011'=사업보고서(기본값·연간), '11012'=반기, '11013'=1분기
+        fs_type: 'CFS'=연결재무제표(기본값), 'OFS'=별도재무제표
+        unit: 반환 단위. 1=원, 1000=천원, 1_000_000=백만원(기본), 100_000_000=억원
+    """
+    return await _client.get_financials_for_model(
+        corp_code, years, report_code, fs_type, unit
+    )
+
+
 # ── 임원 ────────────────────────────────────────────────────────────────────
 
 
