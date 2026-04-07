@@ -1,4 +1,3 @@
 [deploy]
 startCommand = "stock-mcp --http"
-healthcheckPath = "/mcp"
 restartPolicyType = "on_failure"
