@@ -487,6 +487,12 @@ class DARTClient:
             unit: 반환 단위 (기본값 1_000_000 = 백만원). 1=원, 100_000_000=억원
         """
         import asyncio
+        from datetime import date as _date
+
+        # 현재 연도를 항상 포함 (AI가 빠뜨려도 자동 추가)
+        current_year = _date.today().year
+        if current_year not in years:
+            years = sorted(set(years) | {current_year})
 
         # ── XBRL account_id → 표준 필드명 매핑 테이블 ─────────────────────
         # IFRS 표준 태그 기반. 회사명/계정명이 달라도 account_id는 동일.
