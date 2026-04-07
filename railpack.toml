@@ -1,2 +1,2 @@
 [start]
-command = "SERVER_PORT=$PORT stock-mcp --http"
+command = "stock-mcp --http"

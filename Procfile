@@ -1,1 +1,1 @@
-web: SERVER_PORT=$PORT stock-mcp --http
+web: stock-mcp --http
