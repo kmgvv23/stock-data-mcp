@@ -12,6 +12,7 @@ Transport modes:
 """
 
 import sys
+from datetime import date
 
 from fastmcp import FastMCP
 
@@ -20,9 +21,15 @@ from stock_data_mcp.tools.dart_tools import dart
 from stock_data_mcp.tools.ecos_tools import ecos
 from stock_data_mcp.tools.krx_tools import krx
 
+_today = date.today()
+_recent_3y = [_today.year - 1, _today.year - 2, _today.year - 3]
+
 mcp = FastMCP(
     "Korean Stock Data",
     instructions=(
+        f"오늘 날짜: {_today.isoformat()} (현재 연도: {_today.year}년)\n"
+        f"최근 3개년 기준: {_recent_3y[2]}, {_recent_3y[1]}, {_recent_3y[0]}년\n"
+        f"연간 사업보고서(11011)는 해당 연도 다음 해 3~4월에 공시됩니다.\n\n"
         "This server provides Korean financial market data from three official sources.\n\n"
         "Tools are prefixed by source:\n"
         "- krx_*  : Korea Exchange (KRX) — stock prices, indices, ETF, investor trading, short selling\n"
