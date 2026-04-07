@@ -9,12 +9,23 @@ _client = DARTClient()
 
 
 @dart.tool
-async def get_corp_codes() -> list[dict]:
-    """DART에 등록된 전체 기업의 코드 목록을 반환합니다.
-    corp_code(DART 고유코드)와 stock_code(거래소 종목코드)를 포함합니다.
-    종목코드로 corp_code를 찾을 때 활용하세요.
+async def get_corp_codes(
+    query: str = "",
+    stock_code: str = "",
+    listed_only: bool = True,
+) -> list[dict]:
+    """기업의 DART corp_code를 검색합니다.
+
+    corp_code는 DART 재무제표·공시 조회에 필요한 고유번호입니다.
+    반드시 query 또는 stock_code 중 하나를 지정하세요.
+    아무것도 지정하지 않으면 상장법인 전체 목록을 반환합니다 (매우 많음).
+
+    Args:
+        query: 회사명 검색어, 부분 일치 (예: '삼성증권', '카카오')
+        stock_code: 거래소 6자리 종목코드, 정확 일치 (예: '005930')
+        listed_only: True=상장법인만(기본값), False=비상장 포함 전체
     """
-    return await _client.get_corp_codes()
+    return await _client.get_corp_codes(query, stock_code, listed_only)
 
 
 @dart.tool

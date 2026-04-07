@@ -24,26 +24,48 @@ class DARTClient:
 
     # ── 기업 코드 ─────────────────────────────────────────────────────────
 
-    async def get_corp_codes(self) -> list[dict]:
-        """전체 기업 코드 목록 (ZIP → XML 파싱). corp_code와 stock_code를 포함."""
+    async def get_corp_codes(
+        self,
+        query: str = "",
+        stock_code: str = "",
+        listed_only: bool = True,
+    ) -> list[dict]:
+        """기업 코드 목록 (ZIP → XML 파싱).
+
+        Args:
+            query: 회사명 검색어 (부분 일치, 예: '삼성')
+            stock_code: 거래소 종목코드 (정확 일치, 예: '005930')
+            listed_only: True이면 상장법인만 반환 (기본값)
+        """
+        import xml.etree.ElementTree as ET
+
         resp = await self._client.get("/corpCode.xml", params=self._auth())
         resp.raise_for_status()
 
         with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
             xml_bytes = zf.read("CORPCODE.xml")
 
-        # 간단한 XML 파싱 (xml.etree 사용)
-        import xml.etree.ElementTree as ET
         root = ET.fromstring(xml_bytes)
-        return [
-            {
+        results = []
+        for item in root.findall("list"):
+            sc = item.findtext("stock_code", "").strip()
+            name = item.findtext("corp_name", "")
+
+            if listed_only and not sc:
+                continue
+            if stock_code and sc != stock_code:
+                continue
+            if query and query not in name:
+                continue
+
+            results.append({
                 "corp_code": item.findtext("corp_code", ""),
-                "corp_name": item.findtext("corp_name", ""),
-                "stock_code": item.findtext("stock_code", ""),
+                "corp_name": name,
+                "stock_code": sc,
                 "modify_date": item.findtext("modify_date", ""),
-            }
-            for item in root.findall("list")
-        ]
+            })
+
+        return results
 
     # ── 기업 개황 ─────────────────────────────────────────────────────────
 
