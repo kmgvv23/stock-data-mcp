@@ -1,4 +1,4 @@
 [deploy]
-startCommand = "SERVER_PORT=$PORT stock-mcp --http"
+startCommand = "stock-mcp --http"
 healthcheckPath = "/mcp"
 restartPolicyType = "on_failure"
