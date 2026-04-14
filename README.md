@@ -58,7 +58,20 @@ uv run stock-mcp --http
 
 ## 배포 (Railway)
 
-Railway 플랫폼 배포가 기본 지원됩니다. Dockerfile도 포함되어 있어 모든 컨테이너 환경에서 실행 가능합니다.
+Railway에 배포되어 있습니다. Dockerfile도 포함되어 있어 모든 컨테이너 환경에서 실행 가능합니다.
+
+## MCP 지원 LLM 연결 (ChatGPT 등)
+
+MCP를 지원하는 AI 서비스에 아래 URL 하나만 입력하면 바로 연결됩니다.
+
+```
+https://stock-data-mcp-production.up.railway.app/mcp
+```
+
+**ChatGPT 연결 방법:**
+1. ChatGPT → 설정 → 연결된 앱 → **MCP 서버 추가**
+2. 위 URL 입력
+3. 연결 완료 후 한국 주식·공시·거시경제 데이터 바로 조회 가능
 
 ## License
 
